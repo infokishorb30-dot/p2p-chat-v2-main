@@ -2,8 +2,8 @@
 # Docs: https://docs.netlify.com/configure-builds/file-based-configuration/
 
 [build]
-# Command to build the project - ensure npm installs devDependencies
-command = "npm ci && npm run build"
+# Command to build the project - explicitly include devDependencies
+command = "npm ci --include=dev && npm run build"
 
 # Directory to publish (output of build)
 publish = "dist"
@@ -12,10 +12,8 @@ publish = "dist"
 node_version = "18.18.0"
 
 [build.environment]
-# Production environment
+# Production environment - but build needs devDependencies
 NODE_ENV = "production"
-# Force npm to install devDependencies
-CI = "true"
 
 # Single Page App (SPA) configuration
 # All routes should serve index.html for React Router to handle navigation
