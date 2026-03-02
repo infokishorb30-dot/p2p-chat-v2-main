@@ -125,6 +125,40 @@ function App() {
     }
   }, [messages])
 
+  // Auto-retry queued messages when connection recovers
+  useEffect(() => {
+    if (!conn || !conn.open || messageQueueRef.current.length === 0) return
+
+    const retryInterval = setInterval(() => {
+      if (!conn.open || messageQueueRef.current.length === 0) return
+      
+      // Check buffer is not too full
+      if (conn.bufferedAmount && conn.bufferedAmount > 65536) return
+
+      const queuedMsg = messageQueueRef.current.shift()
+      try {
+        conn.send(queuedMsg)
+        // Update UI to remove queued status
+        setMessages((prev) => {
+          const updated = [...prev]
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].text === queuedMsg && updated[i].queued) {
+              updated[i].queued = false
+              break
+            }
+          }
+          return updated
+        })
+        setErrorObj(null)
+      } catch (err) {
+        console.error('Failed to send queued message:', err)
+        messageQueueRef.current.unshift(queuedMsg)
+      }
+    }, 500)
+
+    return () => clearInterval(retryInterval)
+  }, [conn?.open])
+
   // Handle page visibility and network connectivity
   useEffect(() => {
     // Handle online/offline events
@@ -338,8 +372,55 @@ function App() {
       return
     }
 
-    // Send message if connected
+    // Send message if connected with buffer flow control
     try {
+      // WebRTC data channels have a bufferedAmount property that limits queued data
+      // Check if buffer is getting full (65536 bytes is typical limit)
+      if (conn.bufferedAmount && conn.bufferedAmount > 65536) {
+        // Buffer is getting full, queue message and retry when buffer drains
+        messageQueueRef.current.push(inputValue)
+        setMessages((prev) => [...prev, { 
+          sender: 'me', 
+          text: inputValue, 
+          timestamp: Date.now(), 
+          queued: true 
+        }])
+        setInputValue('')
+        setErrorObj({ message: '⏳ Optimizing delivery... queued for retry.' })
+        
+        // Retry sending when buffer has drained
+        const retryInterval = setInterval(() => {
+          if (!conn.open) {
+            clearInterval(retryInterval)
+            return
+          }
+          if (conn.bufferedAmount < 32768 && messageQueueRef.current.length > 0) {
+            const queuedMsg = messageQueueRef.current.shift()
+            try {
+              conn.send(queuedMsg)
+              // Update the UI to remove queued status
+              setMessages((prev) => {
+                const updated = [...prev]
+                for (let i = updated.length - 1; i >= 0; i--) {
+                  if (updated[i].text === queuedMsg && updated[i].queued) {
+                    updated[i].queued = false
+                    break
+                  }
+                }
+                return updated
+              })
+              setErrorObj(null)
+            } catch (err) {
+              messageQueueRef.current.unshift(queuedMsg)
+            }
+          }
+          if (messageQueueRef.current.length === 0) {
+            clearInterval(retryInterval)
+          }
+        }, 100)
+        return
+      }
+      
       conn.send(inputValue)
       setMessages((prev) => [...prev, { sender: 'me', text: inputValue, timestamp: Date.now() }])
       setInputValue('')
