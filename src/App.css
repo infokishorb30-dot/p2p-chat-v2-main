@@ -235,6 +235,9 @@ body {
 /* Chat Screen */
 .chat-screen {
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   /* Full height inside panel */
 }
 
@@ -276,18 +279,42 @@ body {
   flex: 1;
   padding: 24px;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  scroll-behavior: smooth;
+  min-height: 0;
+}
+
+/* Custom scrollbar styling */
+.messages-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messages-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.messages-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.messages-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .message-bubble {
-  max-width: 75%;
+  max-width: 85%;
   padding: 12px 18px;
   border-radius: 18px;
   position: relative;
   line-height: 1.4;
   font-size: 0.95rem;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .message-bubble.me {
@@ -313,9 +340,11 @@ body {
 .message-input {
   display: flex;
   gap: 8px;
+  align-items: flex-end;
   padding: 16px;
   background: rgba(0, 0, 0, 0.2);
   border-top: 1px solid var(--glass-border);
+  flex-shrink: 0;
 }
 
 .message-input input {
@@ -325,6 +354,28 @@ body {
   border: 1px solid var(--glass-border);
   background: rgba(255, 255, 255, 0.05);
   color: white;
+  resize: none;
+  max-height: 100px;
+}
+
+.input-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 60px;
+}
+
+.char-count {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-align: center;
+  transition: color 0.2s ease;
+}
+
+.char-count.warning {
+  color: #f59e0b;
+  font-weight: 600;
 }
 
 .message-input button {
@@ -339,6 +390,17 @@ body {
   justify-content: center;
   align-items: center;
   font-size: 0.8rem;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+
+.message-input button:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.message-input button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .empty-state {

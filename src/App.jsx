@@ -20,6 +20,10 @@ function App() {
   const [isCopied, setIsCopied] = useState(false)
 
   const peerRef = useRef(null)
+  const messagesListRef = useRef(null)
+
+  // Character limit constant
+  const MAX_MESSAGE_LENGTH = 2000
 
   // -- PeerJS Initialization --
   const initializePeer = (idToUse = null) => {
@@ -101,6 +105,14 @@ function App() {
     }
   }, [])
 
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (messagesListRef.current) {
+      const scrollHeight = messagesListRef.current.scrollHeight
+      messagesListRef.current.scrollTop = scrollHeight
+    }
+  }, [messages])
+
   // -- Connection Handlers --
   const handleIncomingConnection = (connection) => {
     setConn(connection)
@@ -164,12 +176,17 @@ function App() {
   // -- Messaging --
   const sendMessage = (e) => {
     e.preventDefault()
-    if (!conn || !inputValue.trim()) return
+    if (!conn || !inputValue.trim() || inputValue.length > MAX_MESSAGE_LENGTH) return
 
     conn.send(inputValue)
     setMessages((prev) => [...prev, { sender: 'me', text: inputValue, timestamp: Date.now() }])
     setInputValue('')
   }
+
+  // Calculate character count and percentage
+  const charCount = inputValue.length
+  const charPercentage = (charCount / MAX_MESSAGE_LENGTH) * 100
+  const isNearLimit = charPercentage > 80
 
   // -- UI Helpers --
   const copyId = () => {
@@ -258,7 +275,7 @@ function App() {
         </div>
       </header>
 
-      <div className="messages-list">
+      <div className="messages-list" ref={messagesListRef}>
         {messages.length === 0 && <div className="empty-state">Say hello! 👋</div>}
         {messages.map((msg, index) => (
           <div key={index} className={`message-bubble ${msg.sender}`}>
@@ -273,12 +290,21 @@ function App() {
       <form className="message-input" onSubmit={sendMessage}>
         <input
           type="text"
-          placeholder="Type a message..."
+          placeholder="Type a message... (max 2000 characters)"
           value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
+          onChange={(e) => {
+            const newValue = e.target.value.slice(0, MAX_MESSAGE_LENGTH)
+            setInputValue(newValue)
+          }}
           autoFocus
+          maxLength={MAX_MESSAGE_LENGTH}
         />
-        <button type="submit" disabled={!inputValue.trim()}>Send</button>
+        <div className="input-meta">
+          <span className={`char-count ${isNearLimit ? 'warning' : ''}`}>
+            {charCount}/{MAX_MESSAGE_LENGTH}
+          </span>
+        </div>
+        <button type="submit" disabled={!inputValue.trim() || charCount === 0}>Send</button>
       </form>
     </div>
   )
