@@ -13,12 +13,16 @@ function App() {
   const [screen, setScreen] = useState('setup') // 'setup' | 'connect' | 'chat'
   const [status, setStatus] = useState('')
   const [errorObj, setErrorObj] = useState(null) // { message: string }
+  const [darkMode, setDarkMode] = useState(true)
+  const [selectedChat, setSelectedChat] = useState(null)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
 
   // Data State
   const [messages, setMessages] = useState([])
   const [inputValue, setInputValue] = useState('')
   const [customIdObj, setCustomIdObj] = useState('')
   const [isCopied, setIsCopied] = useState(false)
+  const [chatList, setChatList] = useState([]) // List of recent chats
 
   // Refs for connection management
   const peerRef = useRef(null)
@@ -30,6 +34,20 @@ function App() {
 
   // Character limit constant
   const MAX_MESSAGE_LENGTH = 2000
+
+  // -- Theme Management --
+  useEffect(() => {
+    const root = document.documentElement
+    if (darkMode) {
+      root.style.colorScheme = 'dark'
+      document.body.classList.add('dark-mode')
+      document.body.classList.remove('light-mode')
+    } else {
+      root.style.colorScheme = 'light'
+      document.body.classList.add('light-mode')
+      document.body.classList.remove('dark-mode')
+    }
+  }, [darkMode])
 
   // -- PeerJS Initialization --
   const initializePeer = (idToUse = null) => {
@@ -407,6 +425,32 @@ function App() {
   const isNearLimit = charPercentage > 80
 
   // -- UI Helpers --
+  const insertEmoji = (emoji) => {
+    setInputValue(prev => prev + emoji)
+    setShowEmojiPicker(false)
+  }
+
+  const addToRecentChats = (contactId, contactName) => {
+    setChatList(prev => {
+      const existing = prev.find(chat => chat.id === contactId)
+      if (existing) {
+        return [{ ...existing, lastMessage: inputValue, timestamp: Date.now() }, ...prev.filter(chat => chat.id !== contactId)]
+      }
+      return [{ id: contactId, name: contactName, lastMessage: inputValue, timestamp: Date.now(), unread: 0 }, ...prev]
+    })
+  }
+
+  const selectChat = (chatId) => {
+    const chat = chatList.find(c => c.id === chatId)
+    if (chat) {
+      setSelectedChat(chatId)
+      setPeerId(chatId)
+      // Load messages for this chat (in production, would fetch from DB)
+      setMessages([])
+      setInputValue('')
+    }
+  }
+
   const copyId = () => {
     navigator.clipboard.writeText(myId)
     setIsCopied(true)
@@ -490,50 +534,157 @@ function App() {
   )
 
   const renderChatScreen = () => (
-    <div className="screen chat-screen">
-      <header className="chat-header">
-        <button onClick={disconnectChat} className="back-btn">← Back</button>
-        <div className="header-info">
-          <span className="peer-name">{conn?.peer || 'Unknown'}</span>
-          <span className={`connection-status ${conn?.open ? 'connected' : 'disconnected'}`}>
-            {conn?.open ? '● Connected' : '● Disconnected'}
-          </span>
-          {!isOnline && <span className="network-status">📡 Offline</span>}
+    <div className="screen chat-screen whatsapp-layout">
+      {/* Left Panel: Chat List */}
+      <div className="chat-list-panel">
+        <div className="chat-list-header">
+          <h2>Chats</h2>
+          <button 
+            className="theme-toggle"
+            onClick={() => setDarkMode(!darkMode)}
+            title={darkMode ? 'Light Mode' : 'Dark Mode'}
+          >
+            {darkMode ? '☀️' : '🌙'}
+          </button>
         </div>
-      </header>
 
-      <div className="messages-list" ref={messagesListRef}>
-        {messages.length === 0 && <div className="empty-state">Say hello! 👋</div>}
-        {messages.map((msg, index) => (
-          <div key={index} className={`message-bubble ${msg.sender} ${msg.queued ? 'queued' : ''}`}>
-            <div className="message-content">{msg.text}</div>
-            {msg.queued && <div className="queued-indicator">⏳ Queued</div>}
-            <div className="message-time">
-              {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        <div className="chat-search">
+          <input 
+            type="text" 
+            placeholder="🔍 Search or start new chat"
+            className="search-input"
+          />
+        </div>
+
+        <div className="chat-list">
+          {chatList.length === 0 ? (
+            <div className="empty-chats">
+              <p>No recent chats</p>
+              <p className="small">Connect with friends to start chatting</p>
             </div>
-          </div>
-        ))}
+          ) : (
+            chatList.map(chat => (
+              <div 
+                key={chat.id}
+                className={`chat-item ${selectedChat === chat.id ? 'active' : ''}`}
+                onClick={() => selectChat(chat.id)}
+              >
+                <div className="chat-avatar">{chat.name[0]?.toUpperCase()}</div>
+                <div className="chat-info">
+                  <div className="chat-name">{chat.name}</div>
+                  <div className="chat-preview">{chat.lastMessage || 'No messages'}</div>
+                </div>
+                <div className="chat-meta">
+                  <div className="chat-time">
+                    {new Date(chat.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                  {chat.unread > 0 && <div className="unread-badge">{chat.unread}</div>}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
-      <form className="message-input" onSubmit={sendMessage}>
-        <input
-          type="text"
-          placeholder="Type a message... (max 2000 characters)"
-          value={inputValue}
-          onChange={(e) => {
-            const newValue = e.target.value.slice(0, MAX_MESSAGE_LENGTH)
-            setInputValue(newValue)
-          }}
-          autoFocus
-          maxLength={MAX_MESSAGE_LENGTH}
-        />
-        <div className="input-meta">
-          <span className={`char-count ${isNearLimit ? 'warning' : ''}`}>
-            {charCount}/{MAX_MESSAGE_LENGTH}
-          </span>
-        </div>
-        <button type="submit" disabled={!inputValue.trim() || charCount === 0}>➤</button>
-      </form>
+      {/* Right Panel: Chat Window */}
+      <div className="chat-window-panel">
+        {selectedChat || conn?.open ? (
+          <>
+            <header className="chat-header">
+              <div className="header-left">
+                <button onClick={disconnectChat} className="back-btn">← Back</button>
+                <div className="header-info">
+                  <span className="peer-name">{conn?.peer || 'Select a chat'}</span>
+                  <span className={`connection-status ${conn?.open ? 'connected' : 'disconnected'}`}>
+                    {conn?.open ? '● Connected' : '● Disconnected'}
+                  </span>
+                </div>
+              </div>
+              {!isOnline && <span className="network-status">📡 Offline</span>}
+            </header>
+
+            <div className="messages-list" ref={messagesListRef}>
+              {messages.length === 0 && <div className="empty-state">Say hello! 👋</div>}
+              {messages.map((msg, index) => (
+                <div key={index} className={`message-bubble ${msg.sender} ${msg.queued ? 'queued' : ''}`}>
+                  <div className="message-content">{msg.text}</div>
+                  {msg.queued && <div className="queued-indicator">⏳ Queued</div>}
+                  <div className="message-time">
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <form className="message-input" onSubmit={sendMessage}>
+              <div className="input-toolbar">
+                <button 
+                  type="button"
+                  className="toolbar-btn"
+                  title="Attachments"
+                  onClick={(e) => { e.preventDefault() }}
+                >
+                  📎
+                </button>
+                <button 
+                  type="button"
+                  className="toolbar-btn"
+                  title="Emoji"
+                  onClick={(e) => { 
+                    e.preventDefault()
+                    setShowEmojiPicker(!showEmojiPicker)
+                  }}
+                >
+                  😊
+                </button>
+              </div>
+
+              {showEmojiPicker && (
+                <div className="emoji-picker">
+                  {['😊', '😂', '🤔', '😍', '👍', '🎉', '🔥', '💯', '👏', '🙏', '❤️', '💔'].map(emoji => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      className="emoji-btn"
+                      onClick={() => insertEmoji(emoji)}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="input-row">
+                <input
+                  type="text"
+                  placeholder="Type a message... (max 2000 characters)"
+                  value={inputValue}
+                  onChange={(e) => {
+                    const newValue = e.target.value.slice(0, MAX_MESSAGE_LENGTH)
+                    setInputValue(newValue)
+                  }}
+                  autoFocus
+                  maxLength={MAX_MESSAGE_LENGTH}
+                />
+                <div className="input-meta">
+                  <span className={`char-count ${isNearLimit ? 'warning' : ''}`}>
+                    {charCount}/{MAX_MESSAGE_LENGTH}
+                  </span>
+                </div>
+                <button type="submit" disabled={!inputValue.trim() || charCount === 0}>➤</button>
+              </div>
+            </form>
+          </>
+        ) : (
+          <div className="empty-chat-window">
+            <div className="select-chat-prompt">
+              <div className="whatsapp-icon">💬</div>
+              <h3>Select a chat to start messaging</h3>
+              <p>Choose a contact from the list or enter a friend's ID to connect</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 
