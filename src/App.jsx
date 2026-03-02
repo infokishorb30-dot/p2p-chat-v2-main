@@ -142,20 +142,37 @@ function App() {
       setErrorObj({ message: 'Network disconnected. Will reconnect automatically.' })
     }
 
-    // Handle page visibility (screen lock detection)
+    // Handle page visibility (screen lock or window minimized)
+    // Note: WebRTC connections may be suspended but we keep our state
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        // Page is hidden (screen locked or tab not active)
-        console.log('Page hidden - connection may be suspended')
+        // Page is hidden - maintain connection, don't forcefully reconnect
+        console.log('Page hidden - keeping connection alive')
+        // Connection will persist if still open
       } else {
-        // Page is visible again
-        console.log('Page visible - checking connection')
-        if (isOnline && screen === 'chat' && conn && !conn.open) {
-          setStatus('Reconnecting...')
-          attemptReconnect()
+        // Page is visible again - check connection health
+        console.log('Page visible - verifying connection')
+        if (isOnline && screen === 'chat' && conn) {
+          // Small delay to let event queue settle
+          setTimeout(() => {
+            if (!conn.open && conn !== null) {
+              setStatus('Reconnecting...')
+              attemptReconnect()
+            }
+          }, 500)
         }
       }
     }
+
+    // Keep-alive for WebRTC connection during page suspension
+    const keepAliveInterval = setInterval(() => {
+      if (screen === 'chat' && conn && conn.open && isOnline && !document.hidden) {
+        // Connection is fine
+      } else if (screen === 'chat' && conn && !conn.open && isOnline && !document.hidden) {
+        // Try to restore if disconnected
+        attemptReconnect()
+      }
+    }, 5000) // Check every 5 seconds
 
     // Handle page unload/close
     const handleBeforeUnload = () => {
@@ -170,6 +187,7 @@ function App() {
     window.addEventListener('beforeunload', handleBeforeUnload)
 
     return () => {
+      clearInterval(keepAliveInterval)
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -464,7 +482,7 @@ function App() {
             {charCount}/{MAX_MESSAGE_LENGTH}
           </span>
         </div>
-        <button type="submit" disabled={!inputValue.trim() || charCount === 0}>Send</button>
+        <button type="submit" disabled={!inputValue.trim() || charCount === 0}>➤</button>
       </form>
     </div>
   )

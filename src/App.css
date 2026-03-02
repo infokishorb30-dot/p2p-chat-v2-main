@@ -1,14 +1,16 @@
 :root {
-  --primary: #6366f1;
-  --primary-hover: #4f46e5;
+  --primary: #25d366;
+  --primary-hover: #1fa857;
   --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
   --glass-bg: rgba(255, 255, 255, 0.03);
   --glass-border: rgba(255, 255, 255, 0.08);
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
-  --bubble-me: #6366f1;
-  --bubble-peer: #334155;
+  --bubble-me: #25d366;
+  --bubble-peer: #1e293b;
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --whatsapp-light-bg: #ece5dd;
+  --whatsapp-dark-bg: #0a0e27;
 }
 
 body {
@@ -27,11 +29,12 @@ body {
 .app-container {
   width: 100%;
   height: 100%;
-  max-width: 500px;
-  /* narrowed for mobile-like feel */
+  max-width: 600px;
   max-height: 90vh;
-  padding: 1rem;
+  padding: 0.5rem;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .glass-panel {
@@ -39,11 +42,13 @@ body {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
-  border-radius: 24px;
+  border-radius: 20px;
   height: 100%;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.36);
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Screens */
@@ -78,9 +83,10 @@ body {
 .setup-screen h2 {
   font-size: 2rem;
   margin-bottom: 0.5rem;
-  background: linear-gradient(45deg, #fff, #a5b4fc);
+  background: linear-gradient(45deg, #fff, var(--primary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .setup-form {
@@ -257,38 +263,51 @@ body {
 }
 
 .chat-header {
-  padding: 16px 24px;
-  background: rgba(0, 0, 0, 0.2);
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   border-bottom: 1px solid var(--glass-border);
+  flex-shrink: 0;
 }
 
 .back-btn {
   background: none;
   border: none;
   color: white;
-  font-size: 1rem;
+  font-size: 1.2rem;
   cursor: pointer;
-  padding: 4px;
-  opacity: 0.7;
+  padding: 6px;
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s ease;
+}
+
+.back-btn:hover {
+  opacity: 1;
 }
 
 .header-info {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  flex: 1;
 }
 
 .peer-name {
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1rem;
+  letter-spacing: -0.3px;
 }
 
 .connection-status {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: #22c55e;
   transition: color 0.2s ease;
+  font-weight: 500;
 }
 
 .connection-status.disconnected {
@@ -306,23 +325,30 @@ body {
 }
 
 .network-status {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: #f59e0b;
   margin-left: 4px;
 }
 
 .messages-list {
   flex: 1;
-  padding: 16px 12px;
+  padding: 16px 8px;
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   scroll-behavior: smooth;
   min-height: 0;
   width: 100%;
   box-sizing: border-box;
+  background: transparent;
+}
+
+/* Remove individual message scrolling - use page-level only */
+.messages-list .message-content {
+  overflow: visible;
+  max-height: none;
 }
 
 /* Custom scrollbar styling */
@@ -344,9 +370,9 @@ body {
 }
 
 .message-bubble {
-  max-width: 85%;
+  max-width: 80%;
   min-width: 60px;
-  padding: 12px 16px;
+  padding: 10px 16px;
   border-radius: 18px;
   position: relative;
   line-height: 1.5;
@@ -360,6 +386,18 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  animation: messageSlideIn 0.3s ease-out;
+}
+
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .message-content {
@@ -367,11 +405,8 @@ body {
   overflow-wrap: break-word;
   word-break: break-word;
   white-space: pre-wrap;
-  overflow-x: auto;
   -webkit-user-select: text;
   user-select: text;
-  overflow-y: auto;
-  max-height: 300px;
 }
 
 .message-bubble.queued {
@@ -388,8 +423,18 @@ body {
 .message-bubble.me {
   align-self: flex-end;
   background: var(--bubble-me);
+  color: #000;
   border-bottom-right-radius: 4px;
   margin-right: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.message-bubble.me .message-content {
+  color: #000;
+}
+
+.message-bubble.me .message-time {
+  color: rgba(0, 0, 0, 0.7);
 }
 
 .message-bubble.peer {
@@ -397,11 +442,12 @@ body {
   background: var(--bubble-peer);
   border-bottom-left-radius: 4px;
   margin-left: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .message-time {
-  font-size: 0.75rem;
-  opacity: 0.6;
+  font-size: 0.7rem;
+  opacity: 0.7;
   text-align: right;
   display: block;
   margin-top: 2px;
@@ -409,9 +455,9 @@ body {
 
 .message-input {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: flex-end;
-  padding: 16px;
+  padding: 12px 16px;
   background: rgba(0, 0, 0, 0.2);
   border-top: 1px solid var(--glass-border);
   flex-shrink: 0;
@@ -419,13 +465,26 @@ body {
 
 .message-input input {
   flex: 1;
-  padding: 12px 16px;
+  padding: 10px 16px;
   border-radius: 24px;
-  border: 1px solid var(--glass-border);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
   color: white;
   resize: none;
   max-height: 100px;
+  font-size: 0.95rem;
+  font-family: var(--font-family);
+  transition: background 0.2s ease;
+}
+
+.message-input input:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.message-input input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .input-meta {
@@ -433,11 +492,11 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  min-width: 60px;
+  min-width: 50px;
+  font-size: 0.75rem;
 }
 
 .char-count {
-  font-size: 0.75rem;
   color: var(--text-secondary);
   text-align: center;
   transition: color 0.2s ease;
@@ -451,21 +510,27 @@ body {
 .message-input button {
   background: var(--primary);
   border: none;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  color: white;
+  color: #000;
   cursor: pointer;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 0.8rem;
+  font-size: 1.2rem;
   flex-shrink: 0;
-  transition: background 0.2s ease;
+  transition: all 0.2s ease;
+  font-weight: 600;
 }
 
 .message-input button:hover:not(:disabled) {
   background: var(--primary-hover);
+  transform: scale(1.05);
+}
+
+.message-input button:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .message-input button:disabled {
@@ -481,9 +546,21 @@ body {
 
 /* Responsive styles for mobile and small screens */
 @media (max-width: 480px) {
+  .app-container {
+    max-width: 100%;
+    padding: 0;
+    max-height: 100vh;
+  }
+  
+  .glass-panel {
+    border-radius: 0;
+    max-height: 100vh;
+  }
+  
   .message-bubble {
-    max-width: 95%;
-    padding: 10px 14px;
+    max-width: 90%;
+    padding: 8px 12px;
+    font-size: 0.9rem;
   }
   
   .message-bubble.me {
@@ -496,18 +573,57 @@ body {
   
   .messages-list {
     padding: 12px 8px;
-    gap: 8px;
+    gap: 6px;
   }
   
   .message-content {
     font-size: 0.9rem;
+  }
+  
+  .chat-header {
+    padding: 10px 12px;
+  }
+  
+  .peer-name {
+    font-size: 0.95rem;
+  }
+  
+  .message-input {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  
+  .message-input input {
+    padding: 8px 12px;
+    font-size: 0.9rem;
+  }
+  
+  .message-input button {
+    width: 38px;
+    height: 38px;
   }
 }
 
 @media (max-width: 320px) {
   .message-bubble {
     max-width: 98%;
-    padding: 8px 12px;
-    font-size: 0.9rem;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+  }
+  
+  .messages-list {
+    padding: 8px 4px;
+  }
+}
+
+/* Dark mode optimizations for WhatsApp-like appearance */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: var(--whatsapp-dark-bg);
+  }
+  
+  .message-bubble.peer {
+    background: #1a1a1a;
+    border: 1px solid rgba(255, 255, 255, 0.05);
   }
 }
