@@ -7,6 +7,7 @@ function App() {
   const [myId, setMyId] = useState('')
   const [peerId, setPeerId] = useState('')
   const [conn, setConn] = useState(null)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
 
   // UI State
   const [screen, setScreen] = useState('setup') // 'setup' | 'connect' | 'chat'
@@ -19,8 +20,13 @@ function App() {
   const [customIdObj, setCustomIdObj] = useState('')
   const [isCopied, setIsCopied] = useState(false)
 
+  // Refs for connection management
   const peerRef = useRef(null)
   const messagesListRef = useRef(null)
+  const messageQueueRef = useRef([]) // Queue for messages sent while disconnected
+  const reconnectTimeoutRef = useRef(null)
+  const reconnectAttemptsRef = useRef(0)
+  const maxReconnectAttemptsRef = useRef(5)
 
   // Character limit constant
   const MAX_MESSAGE_LENGTH = 2000
@@ -78,13 +84,19 @@ function App() {
         setErrorObj({ message: `ID "${idToUse}" is already taken. Choose a different name.` })
         setStatus('Registration failed')
       } else if (err.type === 'network') {
-        setErrorObj({ message: 'Network error. Check your internet connection.' })
+        setErrorObj({ message: 'Network error. Check your internet connection and device settings.' })
         setStatus('Network error')
       } else if (err.type === 'webrtc') {
-        setErrorObj({ message: 'WebRTC error. Try disabling VPN or proxy if using one.' })
+        setErrorObj({ message: 'WebRTC error. Try disabling VPN/proxy or switching networks.' })
         setStatus('WebRTC error')
+      } else if (err.type === 'disconnected') {
+        setErrorObj({ message: 'Connection lost. Will attempt to reconnect automatically.' })
+        setStatus('Attempting reconnection')
+        if (screen === 'chat') {
+          attemptReconnect()
+        }
       } else {
-        setErrorObj({ message: `Error: ${err.type}. Try reconnecting.` })
+        setErrorObj({ message: `Connection error: ${err.type}. Please try again.` })
         setStatus('Error occurred')
       }
     })
@@ -112,6 +124,58 @@ function App() {
       messagesListRef.current.scrollTop = scrollHeight
     }
   }, [messages])
+
+  // Handle page visibility and network connectivity
+  useEffect(() => {
+    // Handle online/offline events
+    const handleOnline = () => {
+      setIsOnline(true)
+      if (screen === 'chat' && conn && !conn.open) {
+        setStatus('Reconnecting...')
+        attemptReconnect()
+      }
+    }
+
+    const handleOffline = () => {
+      setIsOnline(false)
+      setStatus('Offline - waiting for connection')
+      setErrorObj({ message: 'Network disconnected. Will reconnect automatically.' })
+    }
+
+    // Handle page visibility (screen lock detection)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Page is hidden (screen locked or tab not active)
+        console.log('Page hidden - connection may be suspended')
+      } else {
+        // Page is visible again
+        console.log('Page visible - checking connection')
+        if (isOnline && screen === 'chat' && conn && !conn.open) {
+          setStatus('Reconnecting...')
+          attemptReconnect()
+        }
+      }
+    }
+
+    // Handle page unload/close
+    const handleBeforeUnload = () => {
+      if (conn && conn.open) {
+        conn.close()
+      }
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [screen, conn, isOnline])
 
   // -- Connection Handlers --
   const handleIncomingConnection = (connection) => {
@@ -146,6 +210,19 @@ function App() {
       setScreen('chat')
       setStatus(`Connected to ${connection.peer}`)
       setErrorObj(null)
+      reconnectAttemptsRef.current = 0 // Reset reconnect counter
+
+      // Send any queued messages
+      while (messageQueueRef.current.length > 0) {
+        const queuedMsg = messageQueueRef.current.shift()
+        try {
+          connection.send(queuedMsg)
+        } catch (err) {
+          console.error('Failed to send queued message:', err)
+          messageQueueRef.current.unshift(queuedMsg) // Put back if failed
+          break
+        }
+      }
     })
 
     connection.on('data', (data) => {
@@ -154,33 +231,106 @@ function App() {
 
     connection.on('error', (err) => {
       console.error('Connection error:', err)
-      setErrorObj({ message: 'Connection lost. Please reconnect.' })
+      setErrorObj({ message: 'Connection error. Attempting to reconnect...' })
       setStatus('Connection error')
+      attemptReconnect()
     })
 
     connection.on('close', () => {
       setStatus('Peer disconnected')
       setConn(null)
       setScreen('connect')
-      alert('Chat ended by peer.')
+      setErrorObj({ message: 'Peer disconnected. Ready to connect to another peer.' })
+      messageQueueRef.current = [] // Clear queue on disconnect
     })
   }
 
+  // Attempt to reconnect with exponential backoff
+  const attemptReconnect = () => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+    }
+
+    if (reconnectAttemptsRef.current >= maxReconnectAttemptsRef.current) {
+      setErrorObj({ message: 'Reconnection failed. Please try connecting again manually.' })
+      setStatus('Reconnection failed')
+      return
+    }
+
+    reconnectAttemptsRef.current += 1
+    // Exponential backoff: 2s, 4s, 8s, 16s, 32s
+    const delayMs = Math.pow(2, reconnectAttemptsRef.current) * 1000
+    
+    setStatus(`Reconnecting in ${Math.round(delayMs / 1000)}s... (Attempt ${reconnectAttemptsRef.current}/${maxReconnectAttemptsRef.current})`)
+
+    reconnectTimeoutRef.current = setTimeout(() => {
+      if (!isOnline) {
+        setStatus('Waiting for network connection...')
+        return
+      }
+
+      if (conn && peerId && peerRef.current) {
+        const newConnection = peerRef.current.connect(peerId, {
+          reliable: true,
+          iceTransportPolicy: 'all'
+        })
+        setConn(newConnection)
+        setupConnectionListeners(newConnection)
+
+        // Timeout for this reconnection attempt
+        setTimeout(() => {
+          if (!newConnection.open && reconnectAttemptsRef.current < maxReconnectAttemptsRef.current) {
+            attemptReconnect()
+          }
+        }, 15000)
+      }
+    }, delayMs)
+  }
+
   const disconnectChat = () => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+    }
     if (conn) conn.close()
     setConn(null)
     setScreen('connect')
     setMessages([])
+    messageQueueRef.current = []
+    reconnectAttemptsRef.current = 0
+    setStatus('Ready to connect')
+    setErrorObj(null)
   }
 
   // -- Messaging --
   const sendMessage = (e) => {
     e.preventDefault()
-    if (!conn || !inputValue.trim() || inputValue.length > MAX_MESSAGE_LENGTH) return
+    if (!inputValue.trim() || inputValue.length > MAX_MESSAGE_LENGTH) return
 
-    conn.send(inputValue)
-    setMessages((prev) => [...prev, { sender: 'me', text: inputValue, timestamp: Date.now() }])
-    setInputValue('')
+    if (!conn || !conn.open) {
+      // Queue message if not connected
+      messageQueueRef.current.push(inputValue)
+      setMessages((prev) => [...prev, { 
+        sender: 'me', 
+        text: inputValue, 
+        timestamp: Date.now(), 
+        queued: true 
+      }])
+      setInputValue('')
+      setErrorObj({ message: '⏳ Message queued. Will send when connection is restored.' })
+      return
+    }
+
+    // Send message if connected
+    try {
+      conn.send(inputValue)
+      setMessages((prev) => [...prev, { sender: 'me', text: inputValue, timestamp: Date.now() }])
+      setInputValue('')
+      setErrorObj(null)
+    } catch (err) {
+      console.error('Error sending message:', err)
+      messageQueueRef.current.push(inputValue)
+      setErrorObj({ message: '⏳ Message queued due to connection issue. Will retry automatically.' })
+    }
   }
 
   // Calculate character count and percentage
@@ -203,11 +353,17 @@ function App() {
   }
 
   const resetId = () => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+    }
     if (peerRef.current) peerRef.current.destroy()
     setMyId('')
     setScreen('setup')
     setStatus('')
     setErrorObj(null)
+    setMessages([])
+    messageQueueRef.current = []
+    reconnectAttemptsRef.current = 0
   }
 
   // -- Render Screens --
@@ -259,7 +415,7 @@ function App() {
       </div>
 
       <div className="status-bar">
-        {status}
+        <div>{status} {!isOnline && '📡'}</div>
         {errorObj && <span className="error-inline"> - {errorObj.message}</span>}
       </div>
     </div>
@@ -271,15 +427,19 @@ function App() {
         <button onClick={disconnectChat} className="back-btn">← Back</button>
         <div className="header-info">
           <span className="peer-name">{conn?.peer || 'Unknown'}</span>
-          <span className="connection-status">● Connected</span>
+          <span className={`connection-status ${conn?.open ? 'connected' : 'disconnected'}`}>
+            {conn?.open ? '● Connected' : '● Disconnected'}
+          </span>
+          {!isOnline && <span className="network-status">📡 Offline</span>}
         </div>
       </header>
 
       <div className="messages-list" ref={messagesListRef}>
         {messages.length === 0 && <div className="empty-state">Say hello! 👋</div>}
         {messages.map((msg, index) => (
-          <div key={index} className={`message-bubble ${msg.sender}`}>
+          <div key={index} className={`message-bubble ${msg.sender} ${msg.queued ? 'queued' : ''}`}>
             <div className="message-content">{msg.text}</div>
+            {msg.queued && <div className="queued-indicator">⏳ Queued</div>}
             <div className="message-time">
               {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>

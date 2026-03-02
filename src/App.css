@@ -217,6 +217,21 @@ body {
   font-size: 0.9rem;
   color: var(--text-secondary);
   min-height: 20px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.status-bar.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.status-bar.warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: #fcd34d;
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .error-inline {
@@ -273,6 +288,27 @@ body {
 .connection-status {
   font-size: 0.75rem;
   color: #22c55e;
+  transition: color 0.2s ease;
+}
+
+.connection-status.disconnected {
+  color: #ef4444;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.network-status {
+  font-size: 0.75rem;
+  color: #f59e0b;
+  margin-left: 4px;
 }
 
 .messages-list {
@@ -315,6 +351,19 @@ body {
   word-wrap: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.message-bubble.queued {
+  opacity: 0.7;
+}
+
+.queued-indicator {
+  font-size: 0.75rem;
+  color: #f59e0b;
+  margin-top: 4px;
+  font-style: italic;
 }
 
 .message-bubble.me {
