@@ -61,6 +61,11 @@ body {
   animation: slideIn 0.3s ease-out;
 }
 
+.screen.chat-screen {
+  padding: 0;
+  height: 100%;
+}
+
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -259,7 +264,8 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* Full height inside panel */
+  width: 100%;
+  overflow: hidden;
 }
 
 .chat-header {
@@ -270,6 +276,8 @@ body {
   gap: 12px;
   border-bottom: 1px solid var(--glass-border);
   flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .back-btn {
@@ -332,7 +340,7 @@ body {
 
 .messages-list {
   flex: 1;
-  padding: 16px 8px;
+  padding: 8px 8px;
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
@@ -461,6 +469,8 @@ body {
   background: rgba(0, 0, 0, 0.2);
   border-top: 1px solid var(--glass-border);
   flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .message-input input {
