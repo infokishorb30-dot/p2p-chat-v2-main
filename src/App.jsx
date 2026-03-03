@@ -29,6 +29,7 @@ function App() {
   const messagesListRef = useRef(null)
   const messageQueueRef = useRef([]) // Queue for messages sent while disconnected
   const reconnectTimeoutRef = useRef(null)
+  const connectTimeoutRef = useRef(null) // Track connection timeout so it can be cancelled
   const reconnectAttemptsRef = useRef(0)
   const maxReconnectAttemptsRef = useRef(5)
 
@@ -57,26 +58,36 @@ function App() {
     const peerConfig = {
       config: {
         iceServers: [
-          // STUN Servers - Distributed globally for reliable NAT traversal
+          // STUN Servers - Reliable, globally distributed
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
           { urls: 'stun:stun2.l.google.com:19302' },
           { urls: 'stun:stun3.l.google.com:19302' },
           { urls: 'stun:stun4.l.google.com:19302' },
           { urls: 'stun:global.stun.twilio.com:3478' },
-          { urls: 'stun:stun.stunprotocol.org:3478' },
-          { urls: 'stun:stun.ekiga.net:3478' },
-          { urls: 'stun:stun.ideasip.com:3478' },
-          { urls: 'stun:stun.schlund.de:3478' },
-          { urls: 'stun:stun.xten.com:3478' },
-          // TURN Server - Fallback relay for networks blocking direct P2P
-          { 
-            urls: 'turn:numb.viagenie.ca',
-            username: 'webrtc@live.com',
-            credential: 'webrtc'
+          // TURN Servers - Relay fallback for restrictive/symmetric NATs
+          {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turns:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
           }
         ],
-        sdpTransform: (sdp) => sdp
+        iceTransportPolicy: 'all' // Allow both direct and relay connections
       }
     }
     const peer = idToUse ? new Peer(idToUse, peerConfig) : new Peer(peerConfig)
@@ -260,24 +271,35 @@ function App() {
     setStatus(`Connecting to ${peerId}...`)
     setErrorObj(null)
 
+    // Clear any previous connection timeout
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current)
+      connectTimeoutRef.current = null
+    }
+
     const connection = peerRef.current.connect(peerId, {
-      reliable: true,
-      iceTransportPolicy: 'all' // Allow both direct and relay connections
+      reliable: true
     })
     setConn(connection)
     setupConnectionListeners(connection)
 
-    // Extended timeout for global connectivity
-    setTimeout(() => {
+    // Extended timeout for global connectivity (30s to allow TURN negotiation)
+    connectTimeoutRef.current = setTimeout(() => {
       if (!connection.open) {
         setStatus('Connection timed out. Retrying might help.')
         setErrorObj({ message: 'Connection timeout. Try again or check peer is online.' })
       }
-    }, 15000)
+      connectTimeoutRef.current = null
+    }, 30000)
   }
 
   const setupConnectionListeners = (connection) => {
     connection.on('open', () => {
+      // Cancel connection timeout on successful open
+      if (connectTimeoutRef.current) {
+        clearTimeout(connectTimeoutRef.current)
+        connectTimeoutRef.current = null
+      }
       setScreen('chat')
       setStatus(`Connected to ${connection.peer}`)
       setErrorObj(null)
@@ -361,6 +383,10 @@ function App() {
   const disconnectChat = () => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current)
+    }
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current)
+      connectTimeoutRef.current = null
     }
     if (conn) conn.close()
     setConn(null)
@@ -467,6 +493,10 @@ function App() {
   const resetId = () => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current)
+    }
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current)
+      connectTimeoutRef.current = null
     }
     if (peerRef.current) peerRef.current.destroy()
     setMyId('')
