@@ -90,7 +90,8 @@ function App() {
     </div>
   )
         setStatus('WebRTC error')
-      } else if (err.type === 'disconnected') {
+      }
+      if (err.type === 'disconnected') {
         setErrorObj({ message: 'Connection lost. Will attempt to reconnect automatically.' })
         setStatus('Attempting reconnection')
         if (screen === 'chat') {
