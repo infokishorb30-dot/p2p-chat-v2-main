@@ -58,6 +58,7 @@ function App() {
     const peerConfig = {
       config: {
         iceServers: [
+      import { ChatWindow } from 'advanced-chat-kai'
           // STUN Servers - Reliable, globally distributed
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
@@ -111,12 +112,66 @@ function App() {
         setStatus('Peer unavailable')
       } else if (err.type === 'unavailable-id') {
         setErrorObj({ message: `ID "${idToUse}" is already taken. Choose a different name.` })
-        setStatus('Registration failed')
-      } else if (err.type === 'network') {
-        setErrorObj({ message: 'Network error. Check your internet connection and device settings.' })
-        setStatus('Network error')
-      } else if (err.type === 'webrtc') {
-        setErrorObj({ message: 'WebRTC error. Try disabling VPN/proxy or switching networks.' })
+          <div className="chat-window-panel">
+            {/* Template Messaging Dropdown */}
+            <div style={{padding: '8px 16px', background: 'rgba(0,0,0,0.08)', borderBottom: '1px solid var(--glass-border)'}}>
+              <select
+                style={{padding: '6px 12px', borderRadius: '8px', fontSize: '1rem'}}
+                defaultValue=""
+                onChange={e => {
+                  if (e.target.value) sendMessage({ preventDefault: () => {}, customText: e.target.value })
+                  e.target.value = ''
+                }}
+              >
+                <option value="" disabled>Send a template message...</option>
+                <option value="Hello! How can I help you today?">Hello! How can I help you today?</option>
+                <option value="Thank you for reaching out. We'll get back to you soon.">Thank you for reaching out. We'll get back to you soon.</option>
+                <option value="Your request has been received and is being processed.">Your request has been received and is being processed.</option>
+              </select>
+            </div>
+            <ChatWindow
+              messages={messages.map(msg => {
+                // Example: Add interactive buttons and list messages for demonstration
+                if (msg.text === '__demo_list__') {
+                  return {
+                    id: msg.timestamp + '-' + msg.sender,
+                    sender: 'other',
+                    type: 'list',
+                    title: 'Choose an option',
+                    options: [
+                      { id: 'opt1', label: 'Order Status' },
+                      { id: 'opt2', label: 'Talk to Agent' },
+                      { id: 'opt3', label: 'FAQ' }
+                    ],
+                    onSelect: (option) => sendMessage({ preventDefault: () => {}, customText: `Selected: ${option.label}` }),
+                  }
+                }
+                if (msg.text === '__demo_buttons__') {
+                  return {
+                    id: msg.timestamp + '-' + msg.sender,
+                    sender: 'other',
+                    type: 'buttons',
+                    text: 'Quick actions:',
+                    buttons: [
+                      { id: 'b1', label: '👍 Yes', onClick: () => sendMessage({ preventDefault: () => {}, customText: '👍 Yes' }) },
+                      { id: 'b2', label: '👎 No', onClick: () => sendMessage({ preventDefault: () => {}, customText: '👎 No' }) }
+                    ]
+                  }
+                }
+                return {
+                  id: msg.timestamp + '-' + msg.sender,
+                  text: msg.text,
+                  sender: msg.sender === 'me' ? 'user' : 'other',
+                  timestamp: msg.timestamp,
+                  status: msg.queued ? 'pending' : 'sent',
+                }
+              })}
+              onSendMessage={text => sendMessage({ preventDefault: () => {}, customText: text })}
+              userId="me"
+              inputPlaceholder="Type a message..."
+              style={{height: '100%'}}
+            />
+          </div>
         setStatus('WebRTC error')
       } else if (err.type === 'disconnected') {
         setErrorObj({ message: 'Connection lost. Will attempt to reconnect automatically.' })
@@ -129,51 +184,52 @@ function App() {
         setStatus('Error occurred')
       }
     })
+      // Modified sendMessage to support both form submit and direct text input
+      const sendMessage = (e) => {
+        let text = inputValue
+        if (e && e.customText !== undefined) {
+          text = e.customText
+        } else if (e && e.target) {
+          e.preventDefault()
+        }
+        if (!text.trim() || text.length > MAX_MESSAGE_LENGTH) return
 
-    peer.on('disconnected', () => {
-      setStatus('Disconnected. Reconnecting...')
-      peer.reconnect()
-    })
-  }
+        if (!conn || !conn.open) {
+          messageQueueRef.current.push(text)
+          setMessages((prev) => [...prev, { 
+            sender: 'me', 
+            text, 
+            timestamp: Date.now(), 
+            queued: true 
+          }])
+          setInputValue('')
+          setErrorObj({ message: '⏳ Message queued. Will send when connection is restored.' })
+          return
+        }
 
-  // Auto-init specific effects
-  useEffect(() => {
-    // Optional: We could auto-init a random ID here, 
-    // but user requested "Set ID" screen first.
-    // So we do nothing until they submit the form.
-    return () => {
-      if (peerRef.current) peerRef.current.destroy()
-    }
-  }, [])
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (messagesListRef.current) {
-      const scrollHeight = messagesListRef.current.scrollHeight
-      messagesListRef.current.scrollTop = scrollHeight
-    }
-  }, [messages])
-
-  // Auto-retry queued messages when connection recovers
-  useEffect(() => {
-    if (!conn || !conn.open || messageQueueRef.current.length === 0) return
-
-    const retryInterval = setInterval(() => {
-      // Check connection and queue status - use optional chaining for safety
-      if (!conn?.open || messageQueueRef.current.length === 0) return
-      
-      // Check buffer is not too full
-      if (conn.bufferedAmount && conn.bufferedAmount > 65536) return
-
-      const queuedMsg = messageQueueRef.current.shift()
-      try {
-        conn.send(queuedMsg)
-        // Update UI to remove queued status
-        setMessages((prev) => {
-          const updated = [...prev]
-          for (let i = updated.length - 1; i >= 0; i--) {
-            if (updated[i].text === queuedMsg && updated[i].queued) {
-              updated[i].queued = false
+        try {
+          if (conn.bufferedAmount && conn.bufferedAmount > 65536) {
+            messageQueueRef.current.push(text)
+            setMessages((prev) => [...prev, { 
+              sender: 'me', 
+              text, 
+              timestamp: Date.now(), 
+              queued: true 
+            }])
+            setInputValue('')
+            setErrorObj({ message: '⏳ Optimizing delivery... will retry when ready.' })
+            return
+          }
+          conn.send(text)
+          setMessages((prev) => [...prev, { sender: 'me', text, timestamp: Date.now() }])
+          setInputValue('')
+          setErrorObj(null)
+        } catch (err) {
+          console.error('Error sending message:', err)
+          messageQueueRef.current.push(text)
+          setErrorObj({ message: '⏳ Message queued due to connection issue. Will retry automatically.' })
+        }
+      }
               break
             }
           }
@@ -563,7 +619,8 @@ function App() {
     </div>
   )
 
-  const renderChatScreen = () => (
+  // WhatsApp-like three-panel layout
+  return (
     <div className="screen chat-screen whatsapp-layout">
       {/* Left Panel: Chat List */}
       <div className="chat-list-panel">
@@ -577,7 +634,6 @@ function App() {
             {darkMode ? '☀️' : '🌙'}
           </button>
         </div>
-
         <div className="chat-search">
           <input 
             type="text" 
@@ -585,7 +641,6 @@ function App() {
             className="search-input"
           />
         </div>
-
         <div className="chat-list">
           {chatList.length === 0 ? (
             <div className="empty-chats">
@@ -615,105 +670,29 @@ function App() {
           )}
         </div>
       </div>
-
-      {/* Right Panel: Chat Window */}
+      {/* Center Panel: Chat Window */}
       <div className="chat-window-panel">
-        {selectedChat || conn?.open ? (
-          <>
-            <header className="chat-header">
-              <div className="header-left">
-                <button onClick={disconnectChat} className="back-btn">← Back</button>
-                <div className="header-info">
-                  <span className="peer-name">{conn?.peer || 'Select a chat'}</span>
-                  <span className={`connection-status ${conn?.open ? 'connected' : 'disconnected'}`}>
-                    {conn?.open ? '● Connected' : '● Disconnected'}
-                  </span>
-                </div>
-              </div>
-              {!isOnline && <span className="network-status">📡 Offline</span>}
-            </header>
-
-            <div className="messages-list" ref={messagesListRef}>
-              {messages.length === 0 && <div className="empty-state">Say hello! 👋</div>}
-              {messages.map((msg, index) => (
-                <div key={index} className={`message-bubble ${msg.sender} ${msg.queued ? 'queued' : ''}`}>
-                  <div className="message-content">{msg.text}</div>
-                  {msg.queued && <div className="queued-indicator">⏳ Queued</div>}
-                  <div className="message-time">
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <form className="message-input" onSubmit={sendMessage}>
-              <div className="input-toolbar">
-                <button 
-                  type="button"
-                  className="toolbar-btn"
-                  title="Attachments"
-                  onClick={(e) => { e.preventDefault() }}
-                >
-                  📎
-                </button>
-                <button 
-                  type="button"
-                  className="toolbar-btn"
-                  title="Emoji"
-                  onClick={(e) => { 
-                    e.preventDefault()
-                    setShowEmojiPicker(!showEmojiPicker)
-                  }}
-                >
-                  😊
-                </button>
-              </div>
-
-              {showEmojiPicker && (
-                <div className="emoji-picker">
-                  {['😊', '😂', '🤔', '😍', '👍', '🎉', '🔥', '💯', '👏', '🙏', '❤️', '💔'].map(emoji => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      className="emoji-btn"
-                      onClick={() => insertEmoji(emoji)}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="input-row">
-                <input
-                  type="text"
-                  placeholder="Type a message... (max 2000 characters)"
-                  value={inputValue}
-                  onChange={(e) => {
-                    const newValue = e.target.value.slice(0, MAX_MESSAGE_LENGTH)
-                    setInputValue(newValue)
-                  }}
-                  autoFocus
-                  maxLength={MAX_MESSAGE_LENGTH}
-                />
-                <div className="input-meta">
-                  <span className={`char-count ${isNearLimit ? 'warning' : ''}`}>
-                    {charCount}/{MAX_MESSAGE_LENGTH}
-                  </span>
-                </div>
-                <button type="submit" disabled={!inputValue.trim() || charCount === 0}>➤</button>
-              </div>
-            </form>
-          </>
-        ) : (
-          <div className="empty-chat-window">
-            <div className="select-chat-prompt">
-              <div className="whatsapp-icon">💬</div>
-              <h3>Select a chat to start messaging</h3>
-              <p>Choose a contact from the list or enter a friend's ID to connect</p>
-            </div>
-          </div>
-        )}
+        {/* ...existing code for chat window and input (to be replaced with advanced-chat-kai) ... */}
+        <div style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#94a3b8'}}>
+          <p>Chat UI will appear here (advanced-chat-kai integration coming next).</p>
+        </div>
+      </div>
+      {/* Right Panel: CRM Details */}
+      <div className="crm-panel" style={{flex: '0 0 320px', background: 'rgba(0,0,0,0.12)', borderLeft: '1px solid var(--glass-border)', padding: '24px', display: 'flex', flexDirection: 'column', minWidth: '250px'}}>
+        <h3 style={{marginTop: 0}}>Customer Details</h3>
+        <div style={{color: '#94a3b8', fontSize: '0.95rem'}}>
+          {/* Example CRM info, replace with real data as needed */}
+          {selectedChat ? (
+            <>
+              <div><b>Name:</b> {selectedChat}</div>
+              <div><b>Email:</b> {selectedChat}@example.com</div>
+              <div><b>Status:</b> Active</div>
+              <div><b>Last Seen:</b> {new Date().toLocaleString()}</div>
+            </>
+          ) : (
+            <p>No customer selected.</p>
+          )}
+        </div>
       </div>
     </div>
   )
