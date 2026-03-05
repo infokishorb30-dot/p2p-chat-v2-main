@@ -89,41 +89,6 @@ function App() {
       </div>
     </div>
   )
-                    title: 'Choose an option',
-                    options: [
-                      { id: 'opt1', label: 'Order Status' },
-                      { id: 'opt2', label: 'Talk to Agent' },
-                      { id: 'opt3', label: 'FAQ' }
-                    ],
-                    onSelect: (option) => sendMessage({ preventDefault: () => {}, customText: `Selected: ${option.label}` }),
-                  }
-                }
-                if (msg.text === '__demo_buttons__') {
-                  return {
-                    id: msg.timestamp + '-' + msg.sender,
-                    sender: 'other',
-                    type: 'buttons',
-                    text: 'Quick actions:',
-                    buttons: [
-                      { id: 'b1', label: '👍 Yes', onClick: () => sendMessage({ preventDefault: () => {}, customText: '👍 Yes' }) },
-                      { id: 'b2', label: '👎 No', onClick: () => sendMessage({ preventDefault: () => {}, customText: '👎 No' }) }
-                    ]
-                  }
-                }
-                return {
-                  id: msg.timestamp + '-' + msg.sender,
-                  text: msg.text,
-                  sender: msg.sender === 'me' ? 'user' : 'other',
-                  timestamp: msg.timestamp,
-                  status: msg.queued ? 'pending' : 'sent',
-                }
-              })}
-              onSendMessage={text => sendMessage({ preventDefault: () => {}, customText: text })}
-              userId="me"
-              inputPlaceholder="Type a message..."
-              style={{height: '100%'}}
-            />
-          </div>
         setStatus('WebRTC error')
       } else if (err.type === 'disconnected') {
         setErrorObj({ message: 'Connection lost. Will attempt to reconnect automatically.' })
