@@ -7,136 +7,88 @@ function App() {
   const [myId, setMyId] = useState('')
   const [peerId, setPeerId] = useState('')
   const [conn, setConn] = useState(null)
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
-
-  // UI State
-  const [screen, setScreen] = useState('setup') // 'setup' | 'connect' | 'chat'
-  const [status, setStatus] = useState('')
-  const [errorObj, setErrorObj] = useState(null) // { message: string }
-  const [darkMode, setDarkMode] = useState(true)
-  const [selectedChat, setSelectedChat] = useState(null)
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-
-  // Data State
-  const [messages, setMessages] = useState([])
-  const [inputValue, setInputValue] = useState('')
-  const [customIdObj, setCustomIdObj] = useState('')
-  const [isCopied, setIsCopied] = useState(false)
-  const [chatList, setChatList] = useState([]) // List of recent chats
-
-  // Refs for connection management
-  const peerRef = useRef(null)
-  const messagesListRef = useRef(null)
-  const messageQueueRef = useRef([]) // Queue for messages sent while disconnected
-  const reconnectTimeoutRef = useRef(null)
-  const connectTimeoutRef = useRef(null) // Track connection timeout so it can be cancelled
-  const reconnectAttemptsRef = useRef(0)
-  const maxReconnectAttemptsRef = useRef(5)
-
-  // Character limit constant
-  const MAX_MESSAGE_LENGTH = 2000
-
-  // -- Theme Management --
-  useEffect(() => {
-    const root = document.documentElement
-    if (darkMode) {
-      root.style.colorScheme = 'dark'
-      document.body.classList.add('dark-mode')
-      document.body.classList.remove('light-mode')
-    } else {
-      root.style.colorScheme = 'light'
-      document.body.classList.add('light-mode')
-      document.body.classList.remove('dark-mode')
-    }
-  }, [darkMode])
-
-  // -- PeerJS Initialization --
-  const initializePeer = (idToUse = null) => {
-    if (peerRef.current) peerRef.current.destroy()
-    setErrorObj(null)
-
-    const peerConfig = {
-      config: {
-        iceServers: [
-      import { ChatWindow } from 'advanced-chat-kai'
-          // STUN Servers - Reliable, globally distributed
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun3.l.google.com:19302' },
-          { urls: 'stun:stun4.l.google.com:19302' },
-          { urls: 'stun:global.stun.twilio.com:3478' },
-          // TURN Servers - Relay fallback for restrictive/symmetric NATs
-          {
-            urls: 'turn:openrelay.metered.ca:80',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          },
-          {
-            urls: 'turn:openrelay.metered.ca:443',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          },
-          {
-            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          },
-          {
-            urls: 'turns:openrelay.metered.ca:443?transport=tcp',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          }
-        ],
-        iceTransportPolicy: 'all' // Allow both direct and relay connections
-      }
-    }
-    const peer = idToUse ? new Peer(idToUse, peerConfig) : new Peer(peerConfig)
-    setStatus('Connecting to server...')
-
-    peer.on('open', (id) => {
-      setMyId(id)
-      setScreen('connect')
-      setStatus('Online')
-      peerRef.current = peer
-    })
-
-    peer.on('connection', (connection) => {
-      handleIncomingConnection(connection)
-    })
-
-    peer.on('error', (err) => {
-      console.error(err)
-      if (err.type === 'peer-unavailable') {
-        setErrorObj({ message: `Peer "${peerId}" not found. Ensure they're online and have shared their ID.` })
-        setStatus('Peer unavailable')
-      } else if (err.type === 'unavailable-id') {
-        setErrorObj({ message: `ID "${idToUse}" is already taken. Choose a different name.` })
-          <div className="chat-window-panel">
-            {/* Template Messaging Dropdown */}
-            <div style={{padding: '8px 16px', background: 'rgba(0,0,0,0.08)', borderBottom: '1px solid var(--glass-border)'}}>
-              <select
-                style={{padding: '6px 12px', borderRadius: '8px', fontSize: '1rem'}}
-                defaultValue=""
-                onChange={e => {
-                  if (e.target.value) sendMessage({ preventDefault: () => {}, customText: e.target.value })
-                  e.target.value = ''
-                }}
-              >
-                <option value="" disabled>Send a template message...</option>
-                <option value="Hello! How can I help you today?">Hello! How can I help you today?</option>
-                <option value="Thank you for reaching out. We'll get back to you soon.">Thank you for reaching out. We'll get back to you soon.</option>
-                <option value="Your request has been received and is being processed.">Your request has been received and is being processed.</option>
-              </select>
-            </div>
-            <ChatWindow
-              messages={messages.map(msg => {
-                // Example: Add interactive buttons and list messages for demonstration
-                if (msg.text === '__demo_list__') {
-                  return {
-                    id: msg.timestamp + '-' + msg.sender,
-                    sender: 'other',
-                    type: 'list',
+  const renderChatScreen = () => (
+    <div className="screen chat-screen two-panel-layout">
+      {/* Center/Right Panel: Chat Window (scrollable) */}
+      <div className="chat-window-panel" style={{overflowY: 'auto', flex: 1, minHeight: 0}}>
+        {/* Template Messaging Dropdown */}
+        <div style={{padding: '8px 16px', background: 'rgba(0,0,0,0.08)', borderBottom: '1px solid var(--glass-border)'}}>
+          <select
+            style={{padding: '6px 12px', borderRadius: '8px', fontSize: '1rem'}}
+            defaultValue=""
+            onChange={e => {
+              if (e.target.value) sendMessage({ preventDefault: () => {}, customText: e.target.value })
+              e.target.value = ''
+            }}
+          >
+            <option value="" disabled>Send a template message...</option>
+            <option value="Hello! How can I help you today?">Hello! How can I help you today?</option>
+            <option value="Thank you for reaching out. We'll get back to you soon.">Thank you for reaching out. We'll get back to you soon.</option>
+            <option value="Your request has been received and is being processed.">Your request has been received and is being processed.</option>
+          </select>
+        </div>
+        <ChatWindow
+          messages={messages.map(msg => {
+            // Example: Add interactive buttons and list messages for demonstration
+            if (msg.text === '__demo_list__') {
+              return {
+                id: msg.timestamp + '-' + msg.sender,
+                sender: 'other',
+                type: 'list',
+                title: 'Choose an option',
+                options: [
+                  { id: 'opt1', label: 'Order Status' },
+                  { id: 'opt2', label: 'Talk to Agent' },
+                  { id: 'opt3', label: 'FAQ' }
+                ],
+                onSelect: (option) => sendMessage({ preventDefault: () => {}, customText: `Selected: ${option.label}` }),
+              }
+            }
+            if (msg.text === '__demo_buttons__') {
+              return {
+                id: msg.timestamp + '-' + msg.sender,
+                sender: 'other',
+                type: 'buttons',
+                text: 'Quick actions:',
+                buttons: [
+                  { id: 'b1', label: '👍 Yes', onClick: () => sendMessage({ preventDefault: () => {}, customText: '👍 Yes' }) },
+                  { id: 'b2', label: '👎 No', onClick: () => sendMessage({ preventDefault: () => {}, customText: '👎 No' }) }
+                ]
+              }
+            }
+            return {
+              id: msg.timestamp + '-' + msg.sender,
+              text: msg.text,
+              sender: msg.sender === 'me' ? 'user' : 'other',
+              timestamp: msg.timestamp,
+              status: msg.queued ? 'pending' : 'sent',
+            }
+          })}
+          onSendMessage={text => sendMessage({ preventDefault: () => {}, customText: text })}
+          userId="me"
+          inputPlaceholder="Type a message..."
+          style={{height: '100%'}}
+        />
+      </div>
+      {/* Right Panel: CRM Details */}
+      <div className="crm-panel" style={{flex: '0 0 320px', background: 'rgba(0,0,0,0.12)', borderLeft: '1px solid var(--glass-border)', padding: '24px', display: 'flex', flexDirection: 'column', minWidth: '250px'}}>
+        <h3 style={{marginTop: 0}}>Customer Details</h3>
+        <div style={{color: '#94a3b8', fontSize: '0.95rem'}}>
+          {/* Example CRM info, replace with real data as needed */}
+          {selectedChat ? (
+            <>
+              <div><b>Name:</b> {selectedChat}</div>
+              <div><b>Email:</b> {selectedChat}@example.com</div>
+              <div><b>Status:</b> Active</div>
+              <div><b>Last Seen:</b> {new Date().toLocaleString()}</div>
+            </>
+          ) : (
+            <p>No customer selected.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
                     title: 'Choose an option',
                     options: [
                       { id: 'opt1', label: 'Order Status' },

@@ -268,29 +268,15 @@ body {
 }
 
 /* WhatsApp Two-Panel Layout */
-.chat-screen.whatsapp-layout {
+
+.chat-screen.two-panel-layout {
   flex-direction: row;
   gap: 0;
 }
 
-.chat-list-panel {
-  flex: 0 0 320px;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--glass-border);
-  background: rgba(0, 0, 0, 0.2);
-  overflow: hidden;
-  min-width: 250px;
-}
 
-.chat-list-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid var(--glass-border);
-  flex-shrink: 0;
-}
+
+
 
 .chat-list-header h2 {
   margin: 0;
@@ -347,24 +333,9 @@ body {
   color: rgba(255, 255, 255, 0.5);
 }
 
-.chat-list {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
-}
 
-.empty-chats {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  color: var(--text-secondary);
-  padding: 20px;
-}
+
+
 
 .empty-chats p {
   margin: 8px 0;
@@ -375,90 +346,25 @@ body {
   opacity: 0.7;
 }
 
-.chat-item {
-  display: flex;
-  gap: 12px;
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  align-items: center;
-}
 
-.chat-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
 
-.chat-item.active {
-  background: rgba(37, 211, 102, 0.2);
-  border-left: 3px solid var(--primary);
-  padding-left: 9px;
-}
 
-.chat-avatar {
-  flex-shrink: 0;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--primary);
-  color: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 1.2rem;
-}
 
-.chat-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
 
-.chat-name {
-  font-weight: 500;
-  color: var(--text-primary);
-  font-size: 0.95rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
-.chat-preview {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
-.chat-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  flex-shrink: 0;
-}
 
-.chat-time {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
 
-.unread-badge {
-  background: var(--primary);
-  color: #000;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 700;
-}
+
+
+
+
+
+
+
+
+
+
 
 .chat-window-panel {
   flex: 1;
