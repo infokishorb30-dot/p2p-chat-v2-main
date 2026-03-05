@@ -91,16 +91,18 @@ function App() {
   )
         setStatus('WebRTC error')
       }
+      // Correct error handling for disconnected state
       if (err.type === 'disconnected') {
         setErrorObj({ message: 'Connection lost. Will attempt to reconnect automatically.' })
         setStatus('Attempting reconnection')
         if (screen === 'chat') {
           attemptReconnect()
         }
-      } else {
-        setErrorObj({ message: `Connection error: ${err.type}. Please try again.` })
-        setStatus('Error occurred')
+        return
       }
+      // Handle other errors
+      setErrorObj({ message: `Connection error: ${err.type}. Please try again.` })
+      setStatus('Error occurred')
     })
       // Modified sendMessage to support both form submit and direct text input
       const sendMessage = (e) => {
