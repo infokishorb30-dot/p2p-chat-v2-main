@@ -2,39 +2,110 @@ import { useState, useEffect, useRef } from 'react'
 import Peer from 'peerjs'
 import './App.css'
 
+
 function App() {
-  // Connection State
-  const [myId, setMyId] = useState('')
-  const [peerId, setPeerId] = useState('')
-  const [conn, setConn] = useState(null)
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  // --- Connection State ---
+  const [myId, setMyId] = useState('');
+  const [peerId, setPeerId] = useState('');
+  const [conn, setConn] = useState(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-  // UI State
-  const [screen, setScreen] = useState('setup') // 'setup' | 'connect' | 'chat'
-  const [status, setStatus] = useState('')
-  const [errorObj, setErrorObj] = useState(null) // { message: string }
-  const [darkMode, setDarkMode] = useState(true)
-  const [selectedChat, setSelectedChat] = useState(null)
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  // --- UI State ---
+  const [screen, setScreen] = useState('setup');
+  const [status, setStatus] = useState('');
+  const [errorObj, setErrorObj] = useState(null);
+  const [selectedChat, setSelectedChat] = useState(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  // Data State
-  const [messages, setMessages] = useState([])
-  const [inputValue, setInputValue] = useState('')
-  const [customIdObj, setCustomIdObj] = useState('')
-  const [isCopied, setIsCopied] = useState(false)
-  const [chatList, setChatList] = useState([]) // List of recent chats
+  // --- Data State ---
+  const [messages, setMessages] = useState([]);
+  const [inputValue, setInputValue] = useState('');
+  const [customIdObj, setCustomIdObj] = useState('');
+  const [isCopied, setIsCopied] = useState(false);
+  const [chatList, setChatList] = useState([]);
 
-  // Refs for connection management
-  const peerRef = useRef(null)
-  const messagesListRef = useRef(null)
-  const messageQueueRef = useRef([]) // Queue for messages sent while disconnected
-  const reconnectTimeoutRef = useRef(null)
-  const connectTimeoutRef = useRef(null) // Track connection timeout so it can be cancelled
-  const reconnectAttemptsRef = useRef(0)
-  const maxReconnectAttemptsRef = useRef(5)
+  // --- Refs ---
+  const peerRef = useRef(null);
+  const messagesListRef = useRef(null);
+  const messageQueueRef = useRef([]);
+  const reconnectTimeoutRef = useRef(null);
+  const connectTimeoutRef = useRef(null);
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttemptsRef = useRef(5);
 
-  // Character limit constant
-  const MAX_MESSAGE_LENGTH = 2000
+  // --- Constants ---
+  const MAX_MESSAGE_LENGTH = 2000;
+
+  // --- Modern Layout ---
+  const renderModernChatScreen = () => (
+    <div className="h-screen w-screen flex items-center justify-center bg-[#111B21] overflow-hidden">
+      <div className="w-full h-full md:w-[95vw] md:h-[95vh] md:max-w-6xl md:rounded-xl overflow-hidden flex shadow-2xl">
+        {/* Sidebar */}
+        <div className="flex flex-col bg-white border-r border-gray-200 w-full md:w-[340px] shrink-0">
+          <div className="bg-[#F0F2F5] px-4 py-3 flex items-center justify-between">
+            <span className="font-bold text-[#111B21] text-lg">Chats</span>
+            <button className="rounded-full bg-[#00A884] text-white px-3 py-1" onClick={() => setScreen('connect')}>New</button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {chatList.length === 0 ? (
+              <div className="text-gray-400 text-center mt-10">No recent chats</div>
+            ) : (
+              chatList.map(chat => (
+                <div
+                  key={chat.id}
+                  className={`px-4 py-3 cursor-pointer hover:bg-[#E9EDEF] ${selectedChat === chat.id ? 'bg-[#E9EDEF]' : ''}`}
+                  onClick={() => selectChat(chat.id)}
+                >
+                  <div className="font-medium text-[#111B21]">{chat.name}</div>
+                  <div className="text-xs text-[#8696A0]">{chat.lastMessage || 'No messages'}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+        {/* Chat Window */}
+        <div className="flex-1 flex flex-col bg-[#F0F2F5]">
+          {selectedChat || conn?.open ? (
+            <>
+              <div className="bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <span className="font-semibold text-[#111B21]">{conn?.peer || 'Select a chat'}</span>
+                  <span className={`ml-2 text-xs ${conn?.open ? 'text-[#25D366]' : 'text-gray-400'}`}>{conn?.open ? 'Online' : 'Offline'}</span>
+                </div>
+                <button className="text-[#00A884]" onClick={disconnectChat}>Disconnect</button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6" ref={messagesListRef}>
+                {messages.length === 0 && <div className="text-gray-400 text-center mt-10">Say hello! 👋</div>}
+                {messages.map((msg, idx) => (
+                  <div key={idx} className={`mb-2 flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
+                    <span className={`inline-block px-3 py-2 rounded-lg ${msg.sender === 'me' ? 'bg-[#DCF8C6]' : 'bg-white'}`}>{msg.text}</span>
+                  </div>
+                ))}
+              </div>
+              <form className="bg-white px-4 py-3 border-t border-gray-200 flex items-center" onSubmit={sendMessage}>
+                <input
+                  className="flex-1 border rounded-full px-4 py-2 mr-2"
+                  placeholder="Type a message..."
+                  value={inputValue}
+                  onChange={e => setInputValue(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
+                  maxLength={MAX_MESSAGE_LENGTH}
+                />
+                <button className="bg-[#00A884] text-white px-4 py-2 rounded-full" type="submit" disabled={!inputValue.trim()}>Send</button>
+              </form>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="w-32 h-32 rounded-full bg-[#E9EDEF] flex items-center justify-center mb-6">
+                <span role="img" aria-label="chat" style={{ fontSize: 64, color: '#C9CDD0' }}>💬</span>
+              </div>
+              <h2 className="text-[#41525D] mb-2">Welcome to P2P Chat</h2>
+              <p className="text-[#8696A0] text-sm mb-4">Select a chat or connect with a friend to start messaging.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   // -- Theme Management --
   useEffect(() => {
@@ -718,15 +789,18 @@ function App() {
     </div>
   )
 
+  // Use modern layout for chat screen, fallback to original for setup/connect
+  if (screen === 'chat') {
+    return renderModernChatScreen();
+  }
   return (
     <div className="app-container">
-      <div className={`glass-panel ${screen}`}>
+      <div className={`glass-panel ${screen}`}> 
         {screen === 'setup' && renderSetupScreen()}
         {screen === 'connect' && renderConnectScreen()}
-        {screen === 'chat' && renderChatScreen()}
       </div>
     </div>
-  )
+  );
 }
 
 export default App
