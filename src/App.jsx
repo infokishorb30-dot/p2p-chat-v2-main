@@ -232,6 +232,17 @@ function App() {
   const changeMode   = m => { setThemeMode(m);   applyTheme(m, themeAccent) }
   const changeAccent = a => { setThemeAccent(a); applyTheme(themeMode, a)   }
 
+  // ── Mobile detection ───────────────────────────────────────
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640)
+  // 'sidebar' | 'chat'  — which panel is visible on mobile
+  const [mobilePanelView, setMobilePanelView] = useState('sidebar')
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   // ── User profile ───────────────────────────────────────────
   const [nameInput,  setNameInput]  = useState('')
   const [phoneInput, setPhoneInput] = useState('')
@@ -362,6 +373,7 @@ function App() {
 
   const openChat = useCallback((pid) => {
     setSelectedPeer(pid); setScreen('chat'); setInputValue(''); setErrorMsg('')
+    setMobilePanelView('chat')  // on mobile: switch to chat panel
     setContacts(prev => ({...prev,[pid]:{...(prev[pid]||{}),viewingNow:true,unread:0}}))
   }, [])
 
@@ -530,12 +542,18 @@ function App() {
   // ══════════════════════════════════════════════════════════
   // RENDER: CHAT
   // ══════════════════════════════════════════════════════════
+
+  // On mobile we show either the sidebar OR the chat panel, never both.
+  // On desktop they sit side-by-side in a flex row.
+  const showSidebar = !isMobile || mobilePanelView === 'sidebar'
+  const showChat    = !isMobile || mobilePanelView === 'chat'
+
   return (
-    <div style={{height:'100vh',width:'100vw',display:'flex',overflow:'hidden',...T.bgSidebar}}>
+    <div style={{height:'100vh',width:'100vw',display:'flex',overflow:'hidden',...T.bgSidebar,flexDirection:'row'}}>
       {showThemePanel && <ThemePanel mode={themeMode} accent={themeAccent} onMode={changeMode} onAccent={changeAccent} onClose={()=>setShowThemePanel(false)}/>}
 
       {/* ── SIDEBAR ─────────────────────────────────────── */}
-      <div style={{width:300,flexShrink:0,display:'flex',flexDirection:'column',...T.bgSidebar,borderRight:'1px solid var(--border)'}}>
+      <div style={{width: isMobile ? '100%' : 300, flexShrink:0, display: showSidebar ? 'flex' : 'none', flexDirection:'column',...T.bgSidebar,borderRight: isMobile ? 'none' : '1px solid var(--border)'}}>
 
         {/* Sidebar header */}
         <div style={{display:'flex',alignItems:'center',gap:10,padding:'13px 14px',...T.bgSidebarHd,borderBottom:'1px solid var(--border)'}}>
@@ -615,11 +633,19 @@ function App() {
       </div>
 
       {/* ── MAIN PANEL ──────────────────────────────────── */}
-      <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,background:'var(--bg-chat)'}}>
+      <div style={{flex:1,display: showChat ? 'flex' : 'none',flexDirection:'column',minWidth:0,background:'var(--bg-chat)',width: isMobile ? '100%' : undefined}}>
         {selectedPeer ? (
           <>
             {/* Header */}
-            <div style={{display:'flex',alignItems:'center',gap:12,padding:'11px 18px',...T.bgSidebarHd,borderBottom:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:12,padding:'11px 14px',...T.bgSidebarHd,borderBottom:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+              {/* Mobile: back button to return to sidebar */}
+              {isMobile && (
+                <button
+                  onClick={() => setMobilePanelView('sidebar')}
+                  style={{background:'none',border:'none',color:'var(--accent)',cursor:'pointer',fontSize:22,padding:'0 4px',lineHeight:1,flexShrink:0}}
+                  title="Back to chats"
+                >←</button>
+              )}
               <div style={{position:'relative'}}>
                 <div style={{width:38,height:38,borderRadius:'50%',
                   background:`linear-gradient(135deg,rgba(var(--accent-rgb),0.5),rgba(var(--accent-rgb),0.2))`,
